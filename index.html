@@ -249,6 +249,8 @@ select.cel{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
 
 /* SYNC MODAL */
 .sync-connected{display:flex;align-items:center;gap:10px;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:16px}
+/* HBAR WRAP */
+.hbar-wrap{margin-top:4px}
 
 /* MISC */
 .empty{padding:40px;text-align:center;color:var(--faint);font-size:13px;font-style:italic}
@@ -699,7 +701,7 @@ function renderKanban(){
     return `<div class="kb-col" data-stage="${esc(s)}"
       ondragover="event.preventDefault();this.classList.add('drag-over')"
       ondragleave="this.classList.remove('drag-over')"
-      ondrop="dropKanban(event,'${esc(s)}')">
+      ondrop="dropKanban(event,this.dataset.stage)">
       <div class="kb-col-head">
         <span class="kbtitle"><span class="dot" style="background:${SDOT[s]||'#ccc'}"></span>${esc(s)}</span>
         <span class="cnt">${items.length}</span>
@@ -767,7 +769,7 @@ function renderCalendar(){
     for(let i=0;i<startDow;i++) cells+=`<div class="cal-day other"></div>`;
     for(let d=1;d<=total;d++){
       const isToday=y===today.getFullYear()&&m===today.getMonth()&&d===today.getDate();
-      cells+=`<div class="cal-day${isToday?" today":""}"><div class="cal-dn">${d}</div>${d===1?prosp.map(p=>`<div class="cal-evt" style="background:${SBG[p.etapa]};color:${SDOT[p.etapa]}" title="${esc(p.org)}" onclick="openFicha(${DATA.indexOf(p)})">${esc(p.org.split(' ').slice(0,2).join(' '))}</div>`).join("").substring(0,300):""}</div>`;
+      cells+=`<div class="cal-day${isToday?" today":""}"><div class="cal-dn">${d}</div>${prosp.filter((_,idx)=>idx===(d-1)%prosp.length&&prosp.length>0&&d<=prosp.length).map(p=>`<div class="cal-evt" style="background:${SBG[p.etapa]};color:${SDOT[p.etapa]}" title="${esc(p.org)}" onclick="openFicha(${DATA.indexOf(p)})">${esc(p.org.split(' ').slice(0,2).join(' '))}</div>`).join("")}</div>`;
     }
     const rem=(7-(startDow+total)%7)%7;
     for(let i=0;i<rem;i++) cells+=`<div class="cal-day other"></div>`;
@@ -916,8 +918,10 @@ function addLog(){
 }
 function closeModal(){
   document.getElementById("overlay").classList.remove("on");
-  const active=["dash","prospectos","kanban-view","gantt","calendar","report"].find(v=>document.getElementById("v-"+v)?.classList.contains("on"));
-  if(active) go(active);
+  // Solo re-renderiza vistas que muestran datos en lista (no dashboard ni report que son pesados)
+  const view=["prospectos","kanban-view"].find(v=>document.getElementById("v-"+v)?.classList.contains("on"));
+  if(view==="prospectos") renderProspectos();
+  if(view==="kanban-view") renderKanban();
 }
 
 /* ═══════════════════════════════════════════
@@ -1039,7 +1043,7 @@ function openSyncPanel(){
     </div>
     <div style="margin-bottom:16px">
       <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:7px">Paso 2 — Pega tu token</div>
-      <input id="gh-token-input" type="password" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--bg);margin-bottom:9px;font-family:monospace" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+      <input id="gh-token-input" type="password" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--bg);margin-bottom:9px;font-family:monospace" placeholder="ghp_… o github_pat_…">
       <button class="btn primary" style="width:100%;justify-content:center" onclick="connectGitHub()">Conectar y sincronizar</button>
     </div>
     <div style="font-size:11px;color:var(--faint);text-align:center;line-height:1.7">El token se guarda solo en este navegador · nunca en ningún servidor.</div>
@@ -1051,7 +1055,7 @@ function closeSyncPanel(){ document.getElementById("sync-overlay").classList.rem
 
 async function connectGitHub(){
   const token=(document.getElementById("gh-token-input")?.value||"").trim();
-  if(!token||!token.startsWith("ghp_")){ alert("⚠ El token debe empezar con ghp_"); return; }
+  if(!token||(!token.startsWith("ghp_")&&!token.startsWith("github_pat_"))){ alert("⚠ Token inválido. Debe empezar con ghp_ o github_pat_"); return; }
   const btn=document.querySelector("#sync-body .btn.primary");
   if(btn){ btn.textContent="Verificando…"; btn.disabled=true; }
   try{
