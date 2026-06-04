@@ -246,11 +246,6 @@ select.cel{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
 .cal-dn{font-size:10px;font-weight:700;color:var(--muted);margin-bottom:2px}
 .cal-evt{font-size:9px;padding:1.5px 4px;border-radius:3px;margin-bottom:2px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
 
-/* SYNC MODAL */
-.sync-connected{display:flex;align-items:center;gap:10px;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:16px}
-/* HBAR WRAP */
-.hbar-wrap{margin-top:4px}
-
 /* MISC */
 .empty{padding:40px;text-align:center;color:var(--faint);font-size:13px;font-style:italic}
 .footnote{text-align:center;color:var(--faint);font-size:11px;padding:20px;line-height:1.7}
@@ -300,8 +295,12 @@ select.cel{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
   </div>
   <div class="topbar-actions no-print">
     <button class="btn primary" onclick="addProspect()">＋ <span>Nuevo prospecto</span></button>
-    <button class="btn sm" onclick="exportXLSX()" title="Exportar Excel"><span class="ic">📊</span> <span>Excel</span></button>
-    <button class="btn sm" id="sync-btn" onclick="openSyncPanel()"><span class="ic">☁</span> <span id="sync-label">Sincronizar</span></button>
+    <button class="btn sm" onclick="exportXLSX()" title="Exportar a Excel"><span class="ic">📊</span> <span>Excel</span></button>
+    <button class="btn sm" onclick="backupJSON()" title="Descargar respaldo de todos tus datos"><span class="ic">💾</span> <span>Respaldo</span></button>
+    <label class="btn sm" title="Restaurar datos desde un respaldo previo" style="cursor:pointer">
+      <span class="ic">⬆</span> <span>Restaurar</span>
+      <input type="file" accept=".json" style="display:none" onchange="restoreJSON(event)">
+    </label>
     <button class="btn sm no-print" onclick="window.print()" title="Imprimir reporte">🖨</button>
   </div>
 </div>
@@ -409,19 +408,6 @@ select.cel{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
   <div class="modal" id="modal"></div>
 </div>
 
-<!-- MODAL SYNC -->
-<div class="overlay" id="sync-overlay" onclick="if(event.target===this)closeSyncPanel()">
-  <div class="modal" id="sync-modal" style="max-width:460px">
-    <div class="modal-head">
-      <div>
-        <h3>☁ Sincronización GitHub Gist</h3>
-        <div style="font-size:11.5px;color:var(--faint);margin-top:3px">Tus datos viven en un Gist privado · disponibles en cualquier equipo</div>
-      </div>
-      <button class="x" onclick="closeSyncPanel()">×</button>
-    </div>
-    <div class="modal-body" id="sync-body"></div>
-  </div>
-</div>
 
 <script>
 /* ═══════════════════════════════════════════
@@ -439,7 +425,6 @@ const PLURAL = {"Embajada":"Embajadas","Empresa":"Empresas","Fundación":"Fundac
 const TIER_COL = {1:"#0D5C48",2:"#C49130",3:"#B0A89C"};
 const MONTHS_GANTT = ["2026-06","2026-07","2026-08","2026-09","2026-10","2026-11","2026-12"];
 const MONTHS_LABEL = ["Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-const GIST_FILE = "ofunam_prospectos_2026.json";
 
 /* ═══════════════════════════════════════════
    DEFAULT DATA
@@ -534,7 +519,6 @@ function load(){
 function save(){
   localStorage.setItem("ofunam_crm_2026", JSON.stringify(DATA));
   updateBadge();
-  if(gistToken()) gistPush();
 }
 function updateBadge(){
   const n = DATA.filter(d=>d.etapa!=="Cerrado perdido").length;
@@ -1009,142 +993,33 @@ function exportXLSX(){
 }
 
 /* ═══════════════════════════════════════════
-   GITHUB GIST SYNC
+   RESPALDO Y RESTAURAR
 ═══════════════════════════════════════════ */
-function gistToken(){ return localStorage.getItem("ofunam_gh_token")||""; }
-function gistId()   { return localStorage.getItem("ofunam_gist_id")||""; }
-
-function setSyncStatus(state){
-  const lbl=document.getElementById("sync-label"); if(!lbl) return;
-  const btn=document.getElementById("sync-btn");
-  const map={ok:{t:"✓ Sync",c:"var(--teal)"},syncing:{t:"⟳ Sync…",c:"var(--gold)"},error:{t:"⚠ Sync",c:"var(--rose)"},idle:{t:"☁ Sincronizar",c:""}};
-  const s=map[state]||map.idle;
-  lbl.textContent=s.t; if(btn) btn.style.color=s.c;
+function backupJSON(){
+  const blob = new Blob([JSON.stringify(DATA,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "respaldo_ofunam_"+new Date().toISOString().slice(0,10)+".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
-
-async function gistPush(){
-  const token=gistToken(); if(!token) return;
-  setSyncStatus("syncing");
-  const body={files:{[GIST_FILE]:{content:JSON.stringify(DATA,null,2)}}};
-  try{
-    const gid=gistId();
-    const res=await fetch(gid?`https://api.github.com/gists/${gid}`:"https://api.github.com/gists",{
-      method:gid?"PATCH":"POST",
-      headers:{"Authorization":"token "+token,"Content-Type":"application/json"},
-      body:JSON.stringify(gid?body:{...body,description:"OFUNAM CRM Prospectos 2026",public:false})
-    });
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    const json=await res.json();
-    if(!gid) localStorage.setItem("ofunam_gist_id",json.id);
-    localStorage.setItem("ofunam_gist_last_sync",new Date().toISOString());
-    setSyncStatus("ok"); setTimeout(()=>setSyncStatus("idle"),3000);
-  } catch(e){ setSyncStatus("error"); setTimeout(()=>setSyncStatus("idle"),5000); }
-}
-
-async function gistPull(){
-  const token=gistToken(); const gid=gistId();
-  if(!token||!gid) return false;
-  setSyncStatus("syncing");
-  try{
-    const res=await fetch(`https://api.github.com/gists/${gid}`,{headers:{"Authorization":"token "+token}});
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    const json=await res.json();
-    const content=json.files?.[GIST_FILE]?.content;
-    if(!content) throw new Error("Archivo no encontrado");
-    const parsed=JSON.parse(content);
-    if(!Array.isArray(parsed)) throw new Error("Formato inválido");
-    DATA=parsed;
-    localStorage.setItem("ofunam_crm_2026",JSON.stringify(DATA));
-    localStorage.setItem("ofunam_gist_last_sync",new Date().toISOString());
-    setSyncStatus("ok"); setTimeout(()=>setSyncStatus("idle"),3000);
-    return true;
-  } catch(e){ setSyncStatus("error"); setTimeout(()=>setSyncStatus("idle"),5000); return false; }
-}
-
-function openSyncPanel(){
-  const token=gistToken(); const gid=gistId();
-  const last=localStorage.getItem("ofunam_gist_last_sync");
-  const lastFmt=last?new Date(last).toLocaleString("es-MX",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"Nunca";
-
-  document.getElementById("sync-body").innerHTML = token ? `
-    <div class="sync-connected">
-      <span style="font-size:22px">✅</span>
-      <div>
-        <div style="font-weight:700;font-size:13.5px">Conectado a GitHub Gist</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">Última sincronización: ${lastFmt}</div>
-        ${gid?`<div style="font-size:10.5px;color:var(--faint);margin-top:2px">Gist ID: <code>${gid.slice(0,14)}…</code></div>`:""}
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px">
-      <button class="btn primary" onclick="gistPull().then(ok=>{if(ok){renderDash();fillStageFilter();updateBadge();closeSyncPanel();}})">⬇ Traer cambios desde GitHub</button>
-      <button class="btn" onclick="gistPush()">⬆ Forzar envío a GitHub</button>
-    </div>
-    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:13px;font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px">
-      <strong style="color:var(--ink)">¿Cómo funciona?</strong><br>
-      Cada cambio se guarda automáticamente en tu Gist privado. En otro equipo: abre la app → ☁ Sincronizar → "Traer cambios desde GitHub".
-    </div>
-    <button class="btn sm danger" style="width:100%;justify-content:center" onclick="if(confirm('¿Desconectar GitHub? Los datos locales se conservan.')){localStorage.removeItem('ofunam_gh_token');localStorage.removeItem('ofunam_gist_id');closeSyncPanel();setSyncStatus('idle');}">
-      Desconectar GitHub
-    </button>
-  ` : `
-    <div style="text-align:center;padding:6px 0 18px">
-      <div style="font-size:32px;margin-bottom:8px">🔗</div>
-      <div style="font-weight:700;font-size:14px;margin-bottom:5px">Conecta tu GitHub en 2 pasos</div>
-      <div style="font-size:12.5px;color:var(--muted);line-height:1.7">Tus prospectos en un <strong>Gist privado</strong>. Disponibles en cualquier equipo.</div>
-    </div>
-    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:14px;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:9px">Paso 1 — Genera tu token</div>
-      <ol style="font-size:12px;color:var(--muted);line-height:2.1;padding-left:16px">
-        <li>Ve a <a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--gold);font-weight:700">github.com/settings/tokens/new</a></li>
-        <li>Note: <code style="background:var(--line);padding:1px 5px;border-radius:4px">OFUNAM CRM</code></li>
-        <li>Expiration: <strong>No expiration</strong></li>
-        <li>Scopes: activa solo <code style="background:var(--line);padding:1px 5px;border-radius:4px">gist</code></li>
-        <li>Clic en <strong>Generate token</strong> → copia el token</li>
-      </ol>
-    </div>
-    <div style="margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:7px">Paso 2 — Pega tu token</div>
-      <input id="gh-token-input" type="password" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--bg);margin-bottom:9px;font-family:monospace" placeholder="ghp_… o github_pat_…">
-      <button class="btn primary" style="width:100%;justify-content:center" onclick="connectGitHub()">Conectar y sincronizar</button>
-    </div>
-    <div style="font-size:11px;color:var(--faint);text-align:center;line-height:1.7">El token se guarda solo en este navegador · nunca en ningún servidor.</div>
-  `;
-  document.getElementById("sync-overlay").classList.add("on");
-}
-
-function closeSyncPanel(){ document.getElementById("sync-overlay").classList.remove("on"); }
-
-async function connectGitHub(){
-  const token=(document.getElementById("gh-token-input")?.value||"").trim();
-  if(!token||(!token.startsWith("ghp_")&&!token.startsWith("github_pat_"))){ alert("⚠ Token inválido. Debe empezar con ghp_ o github_pat_"); return; }
-  const btn=document.querySelector("#sync-body .btn.primary");
-  if(btn){ btn.textContent="Verificando…"; btn.disabled=true; }
-  try{
-    const res=await fetch("https://api.github.com/user",{headers:{"Authorization":"token "+token}});
-    if(!res.ok) throw new Error("Token inválido ("+res.status+")");
-    const user=await res.json();
-    localStorage.setItem("ofunam_gh_token",token);
-    await findOrCreateGist(token);
-    setSyncStatus("ok");
-    setTimeout(()=>setSyncStatus("idle"),3000);
-    openSyncPanel();
-  } catch(e){
-    if(btn){ btn.textContent="Conectar y sincronizar"; btn.disabled=false; }
-    alert("⚠ Error: "+e.message);
-  }
-}
-
-async function findOrCreateGist(token){
-  try{
-    for(let page=1;page<=3;page++){
-      const res=await fetch(`https://api.github.com/gists?per_page=30&page=${page}`,{headers:{"Authorization":"token "+token}});
-      if(!res.ok) break;
-      const list=await res.json(); if(!list.length) break;
-      const found=list.find(g=>g.files&&g.files[GIST_FILE]);
-      if(found){ localStorage.setItem("ofunam_gist_id",found.id); await gistPull(); return; }
-    }
-  } catch(e){}
-  await gistPush();
+function restoreJSON(ev){
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const parsed = JSON.parse(r.result);
+      if(!Array.isArray(parsed)||!parsed.length) throw new Error("Formato inválido");
+      DATA = parsed;
+      save();
+      renderDash();
+      fillStageFilter();
+      updateBadge();
+      alert("✓ Datos restaurados correctamente — "+DATA.length+" prospectos cargados.");
+    } catch(e){ alert("⚠ Archivo inválido. Asegúrate de subir un respaldo generado por esta app."); }
+  };
+  r.readAsText(f);
+  ev.target.value="";
 }
 
 /* ═══════════════════════════════════════════
@@ -1160,11 +1035,7 @@ fillStageFilter();
 renderDash();
 updateBadge();
 
-if(gistToken()&&gistId()){
-  gistPull().then(ok=>{ if(ok){ renderDash(); fillStageFilter(); updateBadge(); } });
-}
-
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeModal(); closeSyncPanel(); } });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 </script>
 </body>
 </html>
