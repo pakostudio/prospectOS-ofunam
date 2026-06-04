@@ -497,26 +497,39 @@ let dragIdx = null;
 /* ═══════════════════════════════════════════
    PERSISTENCIA
 ═══════════════════════════════════════════ */
-const DATA_VERSION = "2026-v4"; // bump this to force reload of default data
+const DATA_VERSION = "2026-v5";
 
 function load(){
   try{
     const savedVer = localStorage.getItem("ofunam_crm_ver");
     const raw = localStorage.getItem("ofunam_crm_2026");
-    // Si la versión no coincide y no hay datos del usuario (todos en Por contactar = datos demo), recargar defaults
-    if(savedVer !== DATA_VERSION && raw){
-      const parsed = JSON.parse(raw);
-      // Si tiene menos registros que DEFAULT_DATA, asumir que son datos demo — recargar
-      if(parsed.length < DEFAULT_DATA.length){
-        DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
-        localStorage.setItem("ofunam_crm_2026", JSON.stringify(DATA));
-        localStorage.setItem("ofunam_crm_ver", DATA_VERSION);
-        return;
+
+    // Primera visita o versión anterior — cargar datos frescos
+    if(!savedVer || savedVer !== DATA_VERSION){
+      // Si hay datos guardados del usuario con MÁS registros que el default, conservarlos
+      if(raw){
+        const parsed = JSON.parse(raw);
+        if(Array.isArray(parsed) && parsed.length >= DEFAULT_DATA.length){
+          // Usuario ya tiene datos actualizados — solo actualizar versión
+          DATA = parsed;
+          localStorage.setItem("ofunam_crm_ver", DATA_VERSION);
+          return;
+        }
       }
+      // Sin datos válidos del usuario → cargar DEFAULT_DATA completo
+      DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
+      localStorage.setItem("ofunam_crm_2026", JSON.stringify(DATA));
+      localStorage.setItem("ofunam_crm_ver", DATA_VERSION);
+      return;
     }
-    localStorage.setItem("ofunam_crm_ver", DATA_VERSION);
+
+    // Versión correcta — cargar datos del usuario normalmente
     DATA = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(DEFAULT_DATA));
-  } catch(e){ DATA = JSON.parse(JSON.stringify(DEFAULT_DATA)); }
+  } catch(e){
+    DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
+    localStorage.setItem("ofunam_crm_2026", JSON.stringify(DATA));
+    localStorage.setItem("ofunam_crm_ver", DATA_VERSION);
+  }
 }
 function save(){
   localStorage.setItem("ofunam_crm_2026", JSON.stringify(DATA));
