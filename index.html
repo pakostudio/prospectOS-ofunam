@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRM Procuración · Patronato OFUNAM 2026</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
@@ -255,7 +254,6 @@ select.cel{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
 /* MISC */
 .empty{padding:40px;text-align:center;color:var(--faint);font-size:13px;font-style:italic}
 .footnote{text-align:center;color:var(--faint);font-size:11px;padding:20px;line-height:1.7}
-.chart-box{position:relative;height:200px}
 .hidden-upload{display:none}
 
 /* RESPONSIVE */
@@ -342,12 +340,15 @@ select.cel{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
       <div class="meta-milestones"><span>Inicio</span><span>Jun</span><span>Ago</span><span>Oct</span><span>Dic 2026</span></div>
     </div>
     <div class="panel-grid-2">
-      <div class="panel"><div class="panel-head">Embudo por etapa</div><div class="chart-box"><canvas id="c-funnel"></canvas></div></div>
-      <div class="panel"><div class="panel-head">Por clase de prospecto</div><div id="entity-bars"></div></div>
+      <!-- Por clase: barras simples -->
+      <div class="panel"><div class="panel-head">Prospectos por clase</div><div id="entity-bars" style="padding-top:4px"></div></div>
+      <!-- Próximas acciones urgentes -->
+      <div class="panel"><div class="panel-head">🎯 Próximas acciones pendientes</div><div id="dash-proximas"></div></div>
     </div>
-    <div class="panel-grid-3">
-      <div class="panel"><div class="panel-head">Por tier de prioridad</div><div class="chart-box" style="height:150px"><canvas id="c-tier"></canvas></div></div>
-      <div class="panel"><div class="panel-head">Por instrumento</div><div class="chart-box" style="height:150px"><canvas id="c-inst"></canvas></div></div>
+    <div class="panel-grid-2">
+      <!-- Por etapa: lista numérica limpia -->
+      <div class="panel"><div class="panel-head">Estado del pipeline</div><div id="dash-stages"></div></div>
+      <!-- Alertas sin contacto -->
       <div class="panel"><div class="panel-head">⚑ Requieren atención</div><div id="dash-alerts"></div></div>
     </div>
   </div>
@@ -491,7 +492,6 @@ const DEFAULT_DATA = [
 let DATA = [];
 let fichaIdx = null;
 let viewMode = 'grupos';
-let charts = {};
 let dragIdx = null;
 
 /* ═══════════════════════════════════════════
@@ -588,12 +588,7 @@ function daysSince(d){
   if(isNaN(dt)) return null;
   return Math.floor((Date.now()-dt)/(864e5));
 }
-function mkChart(id,type,data,opts){
-  const ctx=document.getElementById(id); if(!ctx) return;
-  if(charts[id]) charts[id].destroy();
-  charts[id]=new Chart(ctx,{type,data,options:{responsive:true,maintainAspectRatio:false,...opts}});
-}
-function selOpts(arr,sel){ return arr.map(o=>`<option${o==sel?" selected":""}>${esc(String(o))}</option>`).join(""); }
+function selOpts(arr,sel){ return arr.map(o=>`<option${String(o)===String(sel)?" selected":""}>${esc(String(o))}</option>`).join(""); }
 function entBadge(e){ return `<span class="b bent-${EKEY[e]||"empresa"}">${esc(e)}</span>`; }
 function tierBadge(t){ return `<span class="b tier-${t}">T${t}</span>`; }
 function stagePill(s){ return `<span class="stage-pill" style="background:${SBG[s]||"#eee"};color:${SDOT[s]||"#888"}">${esc(s)}</span>`; }
@@ -612,7 +607,7 @@ function renderDash(){
   const pct    = Math.round(adv/total*100);
 
   set("k-total", active.length);
-  set("k-total-s", `T1: ${cnt(d=>d.tier==1&&d.etapa!=="Cerrado perdido")}  ·  T2: ${cnt(d=>d.tier==2&&d.etapa!=="Cerrado perdido")}  ·  T3: ${cnt(d=>d.tier==3&&d.etapa!=="Cerrado perdido")}`);
+  set("k-total-s", `T1: ${cnt(d=>d.tier==1&&d.etapa!=="Cerrado perdido")} · T2: ${cnt(d=>d.tier==2&&d.etapa!=="Cerrado perdido")} · T3: ${cnt(d=>d.tier==3&&d.etapa!=="Cerrado perdido")}`);
   set("k-por-contactar", porC.length);
   set("k-negoc", negoc.length);
   set("k-negoc-s", `${comp.length} comprometido(s) · ${cnt(d=>d.etapa==="Negociación")} en negociación`);
@@ -622,41 +617,56 @@ function renderDash(){
   set("dash-updated","Actualizado · "+new Date().toLocaleDateString("es-MX",{weekday:"long",day:"numeric",month:"long",year:"numeric"}));
   setTimeout(()=>{ const f=document.getElementById("meta-fill"); if(f) f.style.width=pct+"%"; },100);
 
-  // Funnel chart
-  const fstages = STAGES.filter(s=>s!=="Cerrado perdido");
-  mkChart("c-funnel","bar",
-    {labels:fstages,datasets:[{data:fstages.map(s=>cnt(d=>d.etapa===s)),backgroundColor:fstages.map(s=>SDOT[s]),borderRadius:5,barThickness:18}]},
-    {indexAxis:"y",plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+" prospecto(s)"}}},scales:{x:{ticks:{precision:0,stepSize:1},grid:{color:"#F0EBE2"},border:{display:false}},y:{grid:{display:false},border:{display:false},ticks:{font:{size:10.5}}}}}
-  );
-
-  // Entidad bars
+  // Por clase — barras simples
   const ents = ENTIDADES.filter(e=>cnt(d=>d.entidad===e)>0);
   const maxN = Math.max(...ents.map(e=>cnt(d=>d.entidad===e)),1);
   set("entity-bars", ents.map(e=>{
     const n=cnt(d=>d.entidad===e);
-    return `<div class="hbar-row"><span class="hbar-lab">${esc(e)}</span><span class="hbar-track"><span class="hbar-fill" style="width:${Math.round(n/maxN*100)}%;background:${ECOL[e]}"></span></span><span class="hbar-num">${n}</span></div>`;
+    const t1=cnt(d=>d.entidad===e&&d.tier==1);
+    return `<div class="hbar-row" style="cursor:pointer" onclick="go('prospectos')">
+      <span class="hbar-lab">${esc(e)}</span>
+      <span class="hbar-track"><span class="hbar-fill" style="width:${Math.round(n/maxN*100)}%;background:${ECOL[e]}"></span></span>
+      <span class="hbar-num">${n}</span>
+      ${t1?`<span class="b tier-1" style="font-size:9.5px;margin-left:4px">${t1} T1</span>`:""}
+    </div>`;
   }).join(""));
 
-  // Tier donut
-  mkChart("c-tier","doughnut",
-    {labels:["Tier 1","Tier 2","Tier 3"],datasets:[{data:[1,2,3].map(t=>cnt(d=>d.tier==t&&d.etapa!=="Cerrado perdido")),backgroundColor:["#0D5C48","#C49130","#B0A89C"],borderColor:"#fff",borderWidth:3,hoverOffset:4}]},
-    {plugins:{legend:{position:"bottom",labels:{boxWidth:9,boxHeight:9,padding:9,font:{size:10.5}}}},cutout:"62%"}
+  // Estado del pipeline — lista limpia con semáforo
+  const stageRows = STAGES.filter(s=>s!=="Cerrado perdido").map(s=>{
+    const n = cnt(d=>d.etapa===s);
+    if(!n) return "";
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2)">
+      <span class="sem" style="background:${SDOT[s]};box-shadow:0 0 0 2px ${SDOT[s]}33;flex-shrink:0"></span>
+      <span style="flex:1;font-size:12.5px;color:var(--ink)">${esc(s)}</span>
+      <span style="font-size:16px;font-weight:700;color:${SDOT[s]}">${n}</span>
+    </div>`;
+  }).join("");
+  set("dash-stages", stageRows||`<div class="empty" style="padding:14px 0">Sin datos</div>`);
+
+  // Próximas acciones pendientes
+  const conAccion = DATA
+    .filter(d=>d.proxAccion&&d.proxAccion.trim()&&d.etapa!=="Cerrado perdido"&&d.etapa!=="Cerrado ganado")
+    .slice(0,5);
+  set("dash-proximas", conAccion.length
+    ? conAccion.map(d=>`
+      <div style="display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid var(--line2);cursor:pointer" onclick="openFicha(${DATA.indexOf(d)})">
+        <span class="sem ${semCls(d)}" style="margin-top:4px;flex-shrink:0"></span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.org)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">${esc(d.proxAccion)}</div>
+        </div>
+        ${stagePill(d.etapa)}
+      </div>`).join("")
+    : `<div style="font-size:12px;color:var(--faint);padding:14px 0;text-align:center">Agrega "próxima acción" en cada ficha para verlas aquí</div>`
   );
 
-  // Instrumento donut
-  const ICOL={"Co-producción":"#A8771C","Patrocinio de marca":"#5A3B86","Convocatoria / grant":"#0F6E56","Donativo deducible":"#1B5C9B","Aporte en especie":"#C99A2E","Convenio":"#8A2F50"};
-  const insts = INSTRUMENTOS.filter(i=>cnt(d=>d.instrumento===i)>0);
-  mkChart("c-inst","doughnut",
-    {labels:insts,datasets:[{data:insts.map(i=>cnt(d=>d.instrumento===i)),backgroundColor:insts.map(i=>ICOL[i]||"#999"),borderColor:"#fff",borderWidth:3,hoverOffset:4}]},
-    {plugins:{legend:{position:"bottom",labels:{boxWidth:9,boxHeight:9,padding:7,font:{size:10}}}},cutout:"60%"}
-  );
-
-  // Alertas
-  const alerts = DATA.filter(d=>!["Cerrado perdido","Cerrado ganado"].includes(d.etapa))
+  // Alertas sin contacto
+  const alerts = DATA
+    .filter(d=>!["Cerrado perdido","Cerrado ganado"].includes(d.etapa))
     .filter(d=>{ const ds=daysSince(d); return ds===null||ds>21; })
     .slice(0,6);
   set("dash-alerts", alerts.length
-    ? alerts.map((d,_,__)=>{
+    ? alerts.map(d=>{
         const ds=daysSince(d);
         return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--line2);cursor:pointer" onclick="openFicha(${DATA.indexOf(d)})">
           <span class="sem sem-yellow"></span>
