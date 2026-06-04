@@ -203,7 +203,7 @@ input,select,textarea{font-family:inherit;color:var(--ink)}
   padding:20px 24px;margin-bottom:20px;box-shadow:var(--shadow-sm);
 }
 .meta-bar-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
-.meta-bar-head .label{font-family:'Playfair Display',serif;font-size:15px;font-weight:600}
+.meta-bar-head .label{font-size:15px;font-weight:700}
 .meta-bar-head .pct{font-size:13px;font-weight:600;color:var(--gold)}
 .meta-track{height:10px;background:var(--bg2);border-radius:99px;overflow:hidden;position:relative}
 .meta-fill{
@@ -654,11 +654,7 @@ select.cel{
   <div class="topbar-actions no-print">
     <button class="btn primary ic" onclick="addProspect()"><span class="ic">＋</span> Nuevo prospecto</button>
     <button class="btn sm" onclick="exportXLSX()" title="Exportar a Excel"><span class="ic">📊</span> Excel</button>
-    <button class="btn sm" onclick="backupJSON()" title="Guardar respaldo JSON en tu computadora"><span class="ic">💾</span> Respaldo</button>
-    <label class="btn sm" title="Restaurar desde respaldo JSON guardado anteriormente">
-      <span class="ic">⬆</span> Restaurar
-      <input type="file" accept=".json" class="hidden-upload" onchange="restoreJSON(event)">
-    </label>
+    <button class="btn sm" id="sync-btn" onclick="openSyncPanel()" title="Sincronización con GitHub Gist"><span class="ic">☁</span> <span id="sync-label">Sincronizar</span></button>
     <button class="btn sm" onclick="window.print()" title="Imprimir reporte"><span class="ic">🖨</span></button>
   </div>
 </div>
@@ -825,6 +821,20 @@ select.cel{
 
 </div><!-- /wrap -->
 
+<!-- SYNC PANEL -->
+<div class="overlay" id="sync-overlay" onclick="if(event.target===this)closeSyncPanel()">
+  <div class="modal" id="sync-modal" style="max-width:480px">
+    <div class="modal-head">
+      <div>
+        <h3><!-- MODAL / FICHA -->#9729; Sincronización GitHub Gist</h3>
+        <div style="font-size:12px;color:var(--faint);margin-top:4px">Tus datos viven en un Gist privado · disponibles en cualquier equipo</div>
+      </div>
+      <button class="x" onclick="closeSyncPanel()">×</button>
+    </div>
+    <div class="modal-body" id="sync-body"></div>
+  </div>
+</div>
+
 <!-- MODAL / FICHA -->
 <div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal"></div>
@@ -888,6 +898,8 @@ function load(){
 function save(){
   localStorage.setItem("ofunam_crm_2026",JSON.stringify(DATA));
   updateBadge();
+  // Auto-sync to GitHub Gist if configured
+  if(gistToken()) gistPush();
 }
 function updateBadge(){
   const active = DATA.filter(d=>d.etapa!=="Cerrado perdido").length;
@@ -1559,53 +1571,240 @@ function addProspect(){
 }
 
 /* ══════════════════════════════════════════════════════
-   EXPORTAR / RESPALDO
+   EXCEL EXPORT
 ══════════════════════════════════════════════════════ */
 function exportXLSX(){
   const rows = DATA.map(d=>({
-    "Organización":d.org,
-    "País":d.pais,
-    "Clase":d.entidad,
-    "Instrumento":d.instrumento,
-    "Tier":d.tier,
-    "Etapa":d.etapa,
-    "Próxima acción":d.proxAccion||"",
-    "Cierre objetivo":d.cierre,
-    "Gancho 2026":d.gancho,
-    "Contacto":d.contacto,
-    "Puesto":d.puesto||"",
-    "Teléfono":d.tel,
-    "Email/canal":d.email,
+    "Organización":d.org,"País":d.pais,"Clase":d.entidad,
+    "Instrumento":d.instrumento,"Tier":d.tier,"Etapa":d.etapa,
+    "Próxima acción":d.proxAccion||"","Cierre objetivo":d.cierre,
+    "Gancho 2026":d.gancho,"Contacto":d.contacto,"Puesto":d.puesto||"",
+    "Teléfono":d.tel,"Email/canal":d.email,
     "Interacciones":(d.log||[]).map(l=>l.date+": "+l.txt).join(" | ")
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws["!cols"] = [{wch:34},{wch:14},{wch:16},{wch:20},{wch:5},{wch:18},{wch:40},{wch:13},{wch:50},{wch:24},{wch:22},{wch:18},{wch:30},{wch:60}];
+  ws["!cols"]=[{wch:34},{wch:14},{wch:16},{wch:20},{wch:5},{wch:18},{wch:40},{wch:13},{wch:50},{wch:24},{wch:22},{wch:18},{wch:30},{wch:60}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,"Prospectos 2026");
   XLSX.writeFile(wb,"Prospectos_OFUNAM_2026.xlsx");
 }
-function backupJSON(){
-  const blob = new Blob([JSON.stringify(DATA,null,2)],{type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "respaldo_prospectos_ofunam_"+new Date().toISOString().slice(0,10)+".json";
-  a.click();
+
+/* ══════════════════════════════════════════════════════
+   GITHUB GIST SYNC
+   Flujo:
+   1. Usuario pega su GitHub Token → se guarda en localStorage
+   2. Al guardar cualquier cambio → push automático al Gist
+   3. Al abrir la app → pull automático desde el Gist
+   4. Si no hay token → app funciona solo local (sin sync)
+══════════════════════════════════════════════════════ */
+const GIST_FILENAME = "ofunam_prospectos_2026.json";
+
+function gistToken(){ return localStorage.getItem("ofunam_gh_token")||""; }
+function gistId(){ return localStorage.getItem("ofunam_gist_id")||""; }
+function setSyncStatus(state, msg){
+  const btn = document.getElementById("sync-btn");
+  const lbl = document.getElementById("sync-label");
+  if(!btn||!lbl) return;
+  const icons = {ok:"✓ Sync", syncing:"⟳ Sync...", error:"⚠ Sync", idle:"☁ Sincronizar"};
+  const colors = {ok:"var(--teal)", syncing:"var(--gold)", error:"var(--rose)", idle:""};
+  lbl.textContent = icons[state]||icons.idle;
+  btn.style.color = colors[state]||"";
+  if(msg) console.log("[GistSync]", msg);
 }
-function restoreJSON(ev){
-  const f = ev.target.files[0];
-  if(!f) return;
-  const r = new FileReader();
-  r.onload = ()=>{
-    try{
-      const parsed = JSON.parse(r.result);
-      if(!Array.isArray(parsed)) throw new Error("Formato inválido");
-      DATA = parsed;
-      save();go("dash");
-      alert("✓ Respaldo restaurado correctamente. "+DATA.length+" prospectos cargados.");
-    } catch(e){alert("⚠ Archivo inválido. Asegúrate de subir un respaldo generado por esta app.");}
-  };
-  r.readAsText(f);
-  ev.target.value=""; // reset so same file can be loaded again
+
+async function gistPush(){
+  const token = gistToken();
+  if(!token) return; // sin token, solo local
+  setSyncStatus("syncing","Guardando en Gist...");
+  const body = {files:{[GIST_FILENAME]:{content:JSON.stringify(DATA,null,2)}}};
+  try{
+    let res, gid = gistId();
+    if(gid){
+      res = await fetch(`https://api.github.com/gists/${gid}`,{
+        method:"PATCH",
+        headers:{"Authorization":"token "+token,"Content-Type":"application/json"},
+        body:JSON.stringify(body)
+      });
+    } else {
+      res = await fetch("https://api.github.com/gists",{
+        method:"POST",
+        headers:{"Authorization":"token "+token,"Content-Type":"application/json"},
+        body:JSON.stringify({...body,description:"OFUNAM CRM Prospectos 2026",public:false})
+      });
+    }
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const json = await res.json();
+    if(!gid) localStorage.setItem("ofunam_gist_id", json.id);
+    localStorage.setItem("ofunam_gist_last_sync", new Date().toISOString());
+    setSyncStatus("ok","Guardado en Gist ✓");
+    setTimeout(()=>setSyncStatus("idle"),3000);
+  } catch(e){
+    setSyncStatus("error","Error al guardar: "+e.message);
+    setTimeout(()=>setSyncStatus("idle"),5000);
+  }
+}
+
+async function gistPull(){
+  const token = gistToken();
+  const gid = gistId();
+  if(!token||!gid) return false;
+  setSyncStatus("syncing","Cargando desde Gist...");
+  try{
+    const res = await fetch(`https://api.github.com/gists/${gid}`,{
+      headers:{"Authorization":"token "+token}
+    });
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const json = await res.json();
+    const content = json.files?.[GIST_FILENAME]?.content;
+    if(!content) throw new Error("Archivo no encontrado en Gist");
+    const parsed = JSON.parse(content);
+    if(!Array.isArray(parsed)) throw new Error("Formato inválido");
+    DATA = parsed;
+    localStorage.setItem("ofunam_crm_2026", JSON.stringify(DATA));
+    localStorage.setItem("ofunam_gist_last_sync", new Date().toISOString());
+    setSyncStatus("ok","Cargado desde Gist ✓");
+    setTimeout(()=>setSyncStatus("idle"),3000);
+    return true;
+  } catch(e){
+    setSyncStatus("error","Error al cargar: "+e.message);
+    setTimeout(()=>setSyncStatus("idle"),5000);
+    return false;
+  }
+}
+
+/* Panel de configuración del sync */
+function openSyncPanel(){
+  const token = gistToken();
+  const gid = gistId();
+  const lastSync = localStorage.getItem("ofunam_gist_last_sync");
+  const lastSyncFmt = lastSync
+    ? new Date(lastSync).toLocaleString("es-MX",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})
+    : "Nunca";
+
+  document.getElementById("sync-body").innerHTML = token ? `
+    <!-- CONECTADO -->
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:16px">
+      <span style="font-size:20px">✅</span>
+      <div>
+        <div style="font-weight:700;font-size:13.5px">Conectado a GitHub Gist</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">Última sincronización: ${lastSyncFmt}</div>
+        ${gid?`<div style="font-size:10.5px;color:var(--faint);margin-top:2px">Gist ID: <code style="font-size:10px">${gid.slice(0,12)}…</code></div>`:""}
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <button class="btn primary" onclick="gistPull().then(ok=>{if(ok){renderDash();closeSyncPanel();updateBadge();}})">
+        ⬇ Traer cambios desde GitHub ahora
+      </button>
+      <button class="btn" onclick="gistPush().then(()=>renderSyncStatus())">
+        ⬆ Forzar envío a GitHub ahora
+      </button>
+    </div>
+
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:16px">
+      <strong style="color:var(--ink)">¿Cómo funciona?</strong><br>
+      Cada vez que editas un prospecto, la app guarda automáticamente en tu Gist privado de GitHub.
+      Al abrir la app en otro equipo, carga los datos más recientes de ahí.<br><br>
+      <strong style="color:var(--ink)">¿En otro equipo?</strong> Abre la app, ve a ☁ Sincronizar → "Traer cambios desde GitHub".
+    </div>
+
+    <button class="btn sm" style="color:var(--rose);width:100%;justify-content:center" onclick="if(confirm('¿Desconectar GitHub? Los datos locales se conservan.')){localStorage.removeItem('ofunam_gh_token');localStorage.removeItem('ofunam_gist_id');closeSyncPanel();setSyncStatus('idle');}">
+      Desconectar cuenta de GitHub
+    </button>
+  ` : `
+    <!-- NO CONECTADO - SETUP -->
+    <div style="text-align:center;padding:8px 0 20px">
+      <div style="font-size:36px;margin-bottom:8px">🔗</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px">Conecta tu GitHub en 2 pasos</div>
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.7">
+        Tus prospectos se guardarán en un <strong>Gist privado</strong> de tu cuenta.<br>
+        Nadie más puede verlos. Funciona en cualquier equipo o celular.
+      </div>
+    </div>
+
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px">Paso 1 — Genera tu token en GitHub</div>
+      <ol style="font-size:12px;color:var(--muted);line-height:2;padding-left:18px">
+        <li>Ve a <a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--gold);font-weight:600">github.com/settings/tokens/new</a></li>
+        <li>Nombre: <code style="background:var(--line);padding:1px 5px;border-radius:4px">OFUNAM CRM</code></li>
+        <li>Expiration: <strong>No expiration</strong></li>
+        <li>Scopes: activa solo <code style="background:var(--line);padding:1px 5px;border-radius:4px">gist</code></li>
+        <li>Clic en <strong>Generate token</strong> y copia el token</li>
+      </ol>
+    </div>
+
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px">Paso 2 — Pega tu token aquí</div>
+      <input id="gh-token-input" type="password"
+        style="width:100%;padding:10px 13px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:var(--bg);margin-bottom:10px;font-family:monospace"
+        placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+      <button class="btn primary" style="width:100%;justify-content:center" onclick="connectGitHub()">
+        Conectar y sincronizar
+      </button>
+    </div>
+
+    <div style="font-size:11px;color:var(--faint);text-align:center;line-height:1.7">
+      El token se guarda solo en <em>este navegador</em>.<br>
+      Nunca sale de tu equipo excepto para hablar con la API de GitHub.
+    </div>
+  `;
+  document.getElementById("sync-overlay").classList.add("on");
+}
+
+function closeSyncPanel(){
+  document.getElementById("sync-overlay").classList.remove("on");
+}
+
+async function connectGitHub(){
+  const token = document.getElementById("gh-token-input")?.value?.trim();
+  if(!token||!token.startsWith("ghp_")){
+    alert("⚠ El token debe empezar con ghp_. Revisa que lo copiaste completo.");
+    return;
+  }
+  // Verificar token con la API
+  const btn = document.querySelector("#sync-body .btn.primary");
+  if(btn){btn.textContent="Verificando…";btn.disabled=true;}
+  try{
+    const res = await fetch("https://api.github.com/user",{
+      headers:{"Authorization":"token "+token}
+    });
+    if(!res.ok) throw new Error("Token inválido ("+res.status+")");
+    const user = await res.json();
+    localStorage.setItem("ofunam_gh_token", token);
+    // Intentar cargar Gist existente buscando por nombre de archivo
+    await findOrCreateGist(token);
+    setSyncStatus("ok","Conectado como @"+user.login);
+    setTimeout(()=>setSyncStatus("idle"),3000);
+    openSyncPanel(); // re-render con estado conectado
+  } catch(e){
+    if(btn){btn.textContent="Conectar y sincronizar";btn.disabled=false;}
+    alert("⚠ No se pudo conectar: "+e.message+"\nVerifica que el token sea válido y tenga el scope 'gist'.");
+  }
+}
+
+async function findOrCreateGist(token){
+  // Buscar Gist existente con ese archivo
+  try{
+    let page=1;
+    while(page<=3){
+      const res = await fetch(`https://api.github.com/gists?per_page=30&page=${page}`,{
+        headers:{"Authorization":"token "+token}
+      });
+      if(!res.ok) break;
+      const gists = await res.json();
+      if(!gists.length) break;
+      const found = gists.find(g=>g.files&&g.files[GIST_FILENAME]);
+      if(found){
+        localStorage.setItem("ofunam_gist_id", found.id);
+        // Cargar datos del Gist encontrado
+        await gistPull();
+        return;
+      }
+      page++;
+    }
+  } catch(e){ /* ignorar, crear nuevo */ }
+  // No existe → crear y hacer push inicial
+  await gistPush();
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1615,6 +1814,14 @@ load();
 fillStageFilter();
 renderDash();
 updateBadge();
+// Auto-pull from GitHub Gist on startup if configured
+if(gistToken()&&gistId()){
+  gistPull().then(ok=>{
+    if(ok){ renderDash(); fillStageFilter(); updateBadge(); }
+  });
+} else if(gistToken()){
+  setSyncStatus("idle");
+}
 
 function pluralEnt(ent){
   const map={
