@@ -874,16 +874,21 @@ const ENT_COLOR = {
 const ENT_KEY = e => (e||"").replace(/\s/g,'').replace('ó','o').replace('é','e').replace('ú','u');
 
 const DEFAULT_DATA = [
-  {id:1,org:"Embajada de Alemania",pais:"Alemania",entidad:"Embajada",instrumento:"Co-producción",tier:1,etapa:"Propuesta enviada",gancho:"Ciclo Beethoven · 90 aniversario",contacto:"Dr. Klaus Werner",tel:"+52 55 5283 2200",email:"kultur@mexiko.diplo.de",cierre:"2026-08",log:[{txt:"Reunión inicial con agregado cultural",date:"12 may 2026"}]},
-  {id:2,org:"Fundación Televisa",pais:"México",entidad:"Fundación",instrumento:"Donativo deducible",tier:1,etapa:"Negociación",gancho:"Transmisión especial 90 aniversario",contacto:"Lic. María Esquivel",tel:"",email:"",cierre:"2026-07",log:[]},
-  {id:3,org:"Nestlé México",pais:"México",entidad:"Empresa",instrumento:"Patrocinio de marca",tier:2,etapa:"Primer acercamiento",gancho:"Gala infantil · marca en programa",contacto:"",tel:"",email:"",cierre:"2026-09",log:[]},
-  {id:4,org:"Embajada de Francia",pais:"Francia",entidad:"Embajada",instrumento:"Co-producción",tier:1,etapa:"Por contactar",gancho:"Música francesa en temporada",contacto:"",tel:"",email:"",cierre:"2026-10",log:[]},
-  {id:5,org:"Bancomer / BBVA",pais:"México",entidad:"Empresa",instrumento:"Patrocinio de marca",tier:1,etapa:"Investigación",gancho:"Naming patrocinador temporada",contacto:"",tel:"",email:"",cierre:"2026-09",log:[]},
-  {id:6,org:"Embajada de Italia",pais:"Italia",entidad:"Embajada",instrumento:"Convenio",tier:2,etapa:"Por contactar",gancho:"Concierto de música italiana",contacto:"",tel:"",email:"",cierre:"2026-11",log:[]},
-  {id:7,org:"Fundación Slim",pais:"México",entidad:"Fundación",instrumento:"Donativo deducible",tier:1,etapa:"Comprometido",gancho:"Educación musical · acceso gratuito",contacto:"Arq. Soumaya Slim",tel:"",email:"",cierre:"2026-06",log:[{txt:"Aprobado en comité de donaciones",date:"3 jun 2026"}]},
-  {id:8,org:"PEMEX Cultura",pais:"México",entidad:"Organismo",instrumento:"Convenio",tier:2,etapa:"Propuesta enviada",gancho:"Conciertos en comunidades PEMEX",contacto:"",tel:"",email:"",cierre:"2026-10",log:[]},
-  {id:9,org:"Asociación de Banqueros de México",pais:"México",entidad:"Asociación",instrumento:"Patrocinio de marca",tier:3,etapa:"Por contactar",gancho:"Mesa de honor · gala aniversario",contacto:"",tel:"",email:"",cierre:"2026-11",log:[]},
-  {id:10,org:"Embajada de Japón",pais:"Japón",entidad:"Embajada",instrumento:"Co-producción",tier:2,etapa:"Investigación",gancho:"Concierto de música japonesa contemporánea",contacto:"",tel:"",email:"",cierre:"2026-09",log:[]}
+  {id:1,org:"Goethe-Institut + Embajada Alemania",pais:"Alemania",entidad:"Embajada",instrumento:"Co-producción",tier:1,etapa:"Por contactar",gancho:"Gala 90 aniversario + repertorio alemán (Brahms/Beethoven); ciclo KammerMex MX–DE. Vía concreta: Fondo Internacional de Coproducción del Goethe (música), cubre hasta 75% / 15K–30K €.",contacto:"Sección cultural",puesto:"",tel:"+52 55 5207 0487",email:"info-mexiko@goethe.de",cierre:"2026-09",proxAccion:"",log:[]},
+  {id:2,org:"Foro Cultural de Austria",pais:"Austria",entidad:"Embajada",instrumento:"Aporte en especie",tier:1,etapa:"Por contactar",gancho:"Solista austriaco financiado por programa NASOM; tradición vienesa. Contactar al Foro Cultural de la embajada (Sierra Tarahumara Pte. 420, Lomas de Chapultepec).",contacto:"Foro Cultural de Austria (Embajada)",puesto:"",tel:"+52 55 5251 0806",email:"mexiko-ob@bmeia.gv.at",cierre:"2026-08",proxAccion:"",log:[]},
+  {id:3,org:"IFAL – Casa de Francia",pais:"Francia",entidad:"Embajada",instrumento:"Co-producción",tier:1,etapa:"Por contactar",gancho:"Director titular Gasançon es francés (ángulo natural); Francia INVITADA DE HONOR del Cervantino 2026 — gran palanca; Ravel/Debussy; CNM movilidad.",contacto:"IFAL – Casa de Francia",puesto:"",tel:"+52 55 5566 0777",email:"contacto@casadefranciadigital.org.mx",cierre:"2026-09",proxAccion:"",log:[]},
+  {id:4,org:"Istituto Italiano di Cultura",pais:"Italia",entidad:"Embajada",instrumento:"Co-producción",tier:1,etapa:"Por contactar",gancho:"Respighi/Verdi ya en 2025; Ibermúsicas; Italia invitada de honor FIL 2026. Propuestas culturales al correo del Istituto.",contacto:"Dir. Gianni Vinciguerra",puesto:"Director",tel:"+52 55 5554 0044",email:"direttore.iicmessico@esteri.it",cierre:"2026-10",proxAccion:"",log:[]},
+  {id:5,org:"British Council + Embajada Británica",pais:"Reino Unido",entidad:"Embajada",instrumento:"Co-producción",tier:1,etapa:"Por contactar",gancho:"200 años UK–MX; OFUNAM tocó en UK 2015; Britten/Elgar. Actividad cultural vía British Council Asociados A.C. (Lope de Vega 316, Chapultepec Morales).",contacto:"British Council Asociados A.C.",puesto:"",tel:"+52 55 5263 1900",email:"contacto@britishcouncil.org.mx",cierre:"2026-09",proxAccion:"",log:[]},
+  {id:6,org:"Centro Cultural de España / AECID",pais:"España",entidad:"Embajada",instrumento:"Convocatoria / grant",tier:2,etapa:"Por contactar",gancho:"PICE Movilidad: hasta €15K por evento; Falla/Rodrigo; OFUNAM es quien solicita.",contacto:"CCEMx",puesto:"",tel:"+52 55 5521 1925",email:"vía ccemx.org",cierre:"2026-08",proxAccion:"",log:[]},
+  {id:7,org:"Embajada de Japón + Fundación Japón",pais:"Japón",entidad:"Embajada",instrumento:"Co-producción",tier:2,etapa:"Por contactar",gancho:"Mes de Japón (junio); apoyos de Japan Foundation a artes escénicas.",contacto:"Fundación Japón",puesto:"",tel:"",email:"vía mc.jpf.go.jp",cierre:"2026-07",proxAccion:"",log:[]},
+  {id:8,org:"Centro Cultural Coreano + Embajada",pais:"Corea del Sur",entidad:"Embajada",instrumento:"Co-producción",tier:2,etapa:"Por contactar",gancho:"Gala conmemorativa por aniversario diplomático; Festival Oullim.",contacto:"Centro Cultural Coreano",puesto:"",tel:"",email:"vía mexico.korean-culture.org",cierre:"2026-09",proxAccion:"",log:[]},
+  {id:9,org:"Embajada de EE.UU.",pais:"Estados Unidos",entidad:"Embajada",instrumento:"Convenio",tier:2,etapa:"Por contactar",gancho:"Arts Envoy / American Music Abroad; empata con objetivo Gen Z. OJO: AFCP solo aplica a acervo.",contacto:"Sección cultural",puesto:"",tel:"",email:"vía mx.usembassy.gov",cierre:"2026-10",proxAccion:"",log:[]},
+  {id:10,org:"Delegación de la UE (EEAS)",pais:"Unión Europea",entidad:"Organismo",instrumento:"Co-producción",tier:3,etapa:"Por contactar",gancho:"Paraguas multi-país tipo Eurojazz; permite una gala 'Europa' con varias embajadas.",contacto:"Delegación UE",puesto:"",tel:"",email:"vía eeas.europa.eu",cierre:"2026-10",proxAccion:"",log:[]},
+  {id:11,org:"Embajada de Irlanda + Culture Ireland",pais:"Irlanda",entidad:"Embajada",instrumento:"Aporte en especie",tier:3,etapa:"Por contactar",gancho:"Abrió el Eurojazz 2025; financiamiento vía Culture Ireland.",contacto:"",puesto:"",tel:"",email:"",cierre:"2026-10",proxAccion:"",log:[]},
+  {id:12,org:"Embajada Países Bajos + Dutch Performing Arts",pais:"Países Bajos",entidad:"Embajada",instrumento:"Aporte en especie",tier:3,etapa:"Por contactar",gancho:"Participante recurrente del Eurojazz; Performing Arts Fund NL.",contacto:"",puesto:"",tel:"",email:"",cierre:"2026-10",proxAccion:"",log:[]},
+  {id:13,org:"Embajada de Polonia + Instituto Polaco",pais:"Polonia",entidad:"Embajada",instrumento:"Co-producción",tier:3,etapa:"Por contactar",gancho:"Chopin/Penderecki/Lutosławski; alta afinidad sinfónica.",contacto:"Instituto Polaco",puesto:"",tel:"",email:"",cierre:"2026-09",proxAccion:"",log:[]},
+  {id:14,org:"Embajada de Hungría + Instituto Liszt",pais:"Hungría",entidad:"Embajada",instrumento:"Co-producción",tier:3,etapa:"Por contactar",gancho:"Bartók/Liszt/Kodály; el Instituto Liszt es el brazo cultural.",contacto:"Instituto Liszt",puesto:"",tel:"",email:"",cierre:"2026-09",proxAccion:"",log:[]},
+  {id:15,org:"Embajada de Finlandia + Music Finland",pais:"Finlandia",entidad:"Embajada",instrumento:"Aporte en especie",tier:3,etapa:"Por contactar",gancho:"Sibelius; participante del Eurojazz.",contacto:"",puesto:"",tel:"",email:"",cierre:"2026-10",proxAccion:"",log:[]}
 ];
 
 let DATA = [];
@@ -892,8 +897,42 @@ let viewMode = 'grupos'; // 'grupos' | 'lista'
 let chartInstances = {};
 
 function load(){
-  try{DATA=JSON.parse(localStorage.getItem("ofunam_crm_2026")||"null")||JSON.parse(JSON.stringify(DEFAULT_DATA));}
-  catch(e){DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));}
+  try{
+    // Intentar cargar con la clave actual
+    const raw = localStorage.getItem("ofunam_crm_2026");
+    // Limpiar clave vieja de versión anterior si existe
+    if(localStorage.getItem("ofunam_prospectos_v2")){
+      const oldRaw = localStorage.getItem("ofunam_prospectos_v2");
+      if(!raw && oldRaw){
+        // Migrar datos de versión anterior
+        const oldData = JSON.parse(oldRaw);
+        DATA = oldData.map((d,i)=>({
+          id:i+1,
+          org:d.nombre||d.pais||"Sin nombre",
+          pais:d.pais||"",
+          entidad:d.entidad||"Embajada",
+          instrumento:d.instrumento||"Co-producción",
+          tier:d.tier||2,
+          etapa:d.etapa||"Por contactar",
+          gancho:d.gancho||"",
+          contacto:d.contacto||"",
+          puesto:"",
+          tel:d.tel||"",
+          email:d.email||"",
+          cierre:d.cierre||"2026-10",
+          proxAccion:"",
+          log:d.log||[]
+        }));
+        localStorage.setItem("ofunam_crm_2026",JSON.stringify(DATA));
+        localStorage.removeItem("ofunam_prospectos_v2");
+        return;
+      }
+      localStorage.removeItem("ofunam_prospectos_v2");
+    }
+    DATA = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(DEFAULT_DATA));
+  } catch(e){
+    DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  }
 }
 function save(){
   localStorage.setItem("ofunam_crm_2026",JSON.stringify(DATA));
